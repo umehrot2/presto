@@ -75,6 +75,7 @@ import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hadoop.util.ReflectionUtils;
+import org.apache.hudi.hadoop.HoodieParquetInputFormat;
 import org.apache.hudi.hadoop.realtime.HoodieRealtimeFileSplit;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
@@ -285,6 +286,16 @@ public final class HiveUtil
     {
         String customSplitClass = customSplitInfo.get(HudiRealtimeSplitConverter.CUSTOM_SPLIT_CLASS_KEY);
         return HoodieRealtimeFileSplit.class.getName().equals(customSplitClass);
+    }
+
+    /**
+     * Checks whether a table is a Hudi table based on configured InputFormat.
+     * @param inputFormat InputFormat configured for the table
+     * @return Boolean indicating whether the table is a Hudi table or not.
+     */
+    static boolean isHudiTable(InputFormat<?, ?> inputFormat)
+    {
+        return inputFormat instanceof HoodieParquetInputFormat;
     }
 
     public static void setReadColumns(Configuration configuration, List<Integer> readHiveColumnIndexes)

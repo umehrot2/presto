@@ -113,6 +113,8 @@ public final class HiveSessionProperties
     public static final String FILE_RENAMING_ENABLED = "file_renaming_enabled";
     public static final String PREFER_MANIFESTS_TO_LIST_FILES = "prefer_manifests_to_list_files";
     public static final String MANIFEST_VERIFICATION_ENABLED = "manifest_verification_enabled";
+    public static final String PREFER_METADATA_TO_LIST_HUDI_FILES = "prefer_metadata_to_list_hudi_files";
+    public static final String HUDI_METADATA_VERIFICATION_ENABLED = "hudi_metadata_verification_enabled";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -532,6 +534,16 @@ public final class HiveSessionProperties
                         MANIFEST_VERIFICATION_ENABLED,
                         "Enable manifest verification",
                         hiveClientConfig.isManifestVerificationEnabled(),
+                        false),
+                booleanProperty(
+                        PREFER_METADATA_TO_LIST_HUDI_FILES,
+                        "For Hudi tables prefer to fetch the list of files from its metadata",
+                        hiveClientConfig.isPreferMetadataToListHudiFiles(),
+                        false),
+                booleanProperty(
+                        HUDI_METADATA_VERIFICATION_ENABLED,
+                        "Verify file listing maintained in Hudi table metadata against the file system",
+                        hiveClientConfig.isHudiMetadataVerificationEnabled(),
                         false));
     }
 
@@ -931,5 +943,15 @@ public final class HiveSessionProperties
     public static boolean isManifestVerificationEnabled(ConnectorSession session)
     {
         return session.getProperty(MANIFEST_VERIFICATION_ENABLED, Boolean.class);
+    }
+
+    public static boolean isPreferMetadataToListHudiFiles(ConnectorSession session)
+    {
+        return session.getProperty(PREFER_METADATA_TO_LIST_HUDI_FILES, Boolean.class);
+    }
+
+    public static boolean isHudiMetadataVerificationEnabled(ConnectorSession session)
+    {
+        return session.getProperty(HUDI_METADATA_VERIFICATION_ENABLED, Boolean.class);
     }
 }

@@ -23,7 +23,6 @@ import com.facebook.presto.hive.util.InternalHiveSplitFactory;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.SchemaTableName;
-import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.io.CharStreams;
@@ -40,7 +39,6 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.TextInputFormat;
 import org.apache.hudi.hadoop.HoodieParquetInputFormat;
-import org.apache.hudi.hadoop.HoodieROTablePathFilter;
 import org.apache.hudi.hadoop.realtime.HoodieParquetRealtimeInputFormat;
 
 import java.io.BufferedReader;
@@ -57,7 +55,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.function.IntPredicate;
-import java.util.function.Supplier;
 
 import static com.facebook.presto.hive.HiveBucketing.getVirtualBucketNumber;
 import static com.facebook.presto.hive.HiveColumnHandle.pathColumnHandle;
@@ -104,7 +101,6 @@ public class StoragePartitionLoader
     private final ConnectorSession session;
     private final Deque<Iterator<InternalHiveSplit>> fileIterators;
     private final boolean schedulerUsesHostAddresses;
-    private final Supplier<HoodieROTablePathFilter> hoodiePathFilterSupplier;
     private final boolean partialAggregationsPushedDown;
 
     public StoragePartitionLoader(
@@ -126,13 +122,22 @@ public class StoragePartitionLoader
         this.session = requireNonNull(session, "session is null");
         this.hdfsEnvironment = requireNonNull(hdfsEnvironment, "hdfsEnvironment is null");
         this.namenodeStats = requireNonNull(namenodeStats, "namenodeStats is null");
-        this.directoryLister = requireNonNull(directoryLister, "directoryLister is null");
         this.recursiveDirWalkerEnabled = recursiveDirWalkerEnabled;
         this.hdfsContext = new HdfsContext(session, table.getDatabaseName(), table.getTableName());
         this.fileIterators = requireNonNull(fileIterators, "fileIterators is null");
         this.schedulerUsesHostAddresses = schedulerUsesHostAddresses;
-        this.hoodiePathFilterSupplier = Suppliers.memoize(HoodieROTablePathFilter::new)::get;
         this.partialAggregationsPushedDown = partialAggregationsPushedDown;
+
+        Configuration configuration = hdfsEnvironment.getConfiguration(hdfsContext,
+                new Path(table.getStorage().getLocation()));
+        InputFormat<?, ?> inputFormat = HiveUtil.getInputFormat(configuration,
+                table.getStorage().getStorageFormat().getInputFormat(), false);
+        if (HiveUtil.isHudiTable(inputFormat)) {
+            this.directoryLister = new HudiDirectoryLister(configuration, session, table);
+        }
+        else {
+            this.directoryLister = requireNonNull(directoryLister, "directoryLister is null");
+        }
     }
 
     @Override
@@ -234,7 +239,7 @@ public class StoragePartitionLoader
 
             return addSplitsToSource(splits, splitFactory, hiveSplitSource, stopped);
         }
-        PathFilter pathFilter = isHudiParquetInputFormat(inputFormat) ? hoodiePathFilterSupplier.get() : path1 -> true;
+        PathFilter pathFilter = path1 -> true;
         // S3 Select pushdown works at the granularity of individual S3 objects,
         // Partial aggregation pushdown works at the granularity of individual files
         // therefore we must not split files when either is enabled.
